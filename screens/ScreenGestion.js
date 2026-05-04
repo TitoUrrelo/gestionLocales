@@ -41,7 +41,7 @@ export default function ScreenGestion({ navigation }) {
         {/* Alertas */}
         <TouchableOpacity
           style={styles.card}
-          onPress={() => navigation.navigate('Alertas')}
+          onPress={() => navigation.navigate('AlertasScreen')}
         >
           <MaterialIcons name="warning" size={40} color="#E74C3C" />
           <Text style={styles.cardTitle}>Alertas</Text>

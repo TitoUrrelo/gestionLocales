@@ -12,6 +12,7 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  useWindowDimensions,
 } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 
@@ -101,7 +102,7 @@ const HISTORIALES = {
   ],
 };
 
-const CATEGORIAS = ['Abarrotes', 'Lácteos', 'Bebidas', 'Limpieza', 'Otros'];
+const CATEGORIAS = ['Abarrotes', 'Lácteos', 'Bebidas', 'congelados', 'Limpieza', 'Otros'];
 const TIPOS_MOVIMIENTO = ['Ingreso de mercadería', 'Ajuste de inventario', 'Devolución de cliente'];
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -115,11 +116,19 @@ function getStockStatus(stock, minimo) {
 // ─── Componente principal ─────────────────────────────────────────────────────
 
 export default function ScreenGestionProductos() {
-  const { colors } = useTheme();
+  const { colors, isDark, toggle } = useTheme();
   const s = makeStyles(colors);
+
+  const { width } = useWindowDimensions();
+  const isDesktop = width >= 768;
+  const overlayStyle = isDesktop ? s.overlayDesktop : s.overlay;
+  const sheetStyle   = isDesktop ? s.bottomSheetDesktop : s.bottomSheet;
 
   const [productos, setProductos] = useState(PRODUCTOS_INICIALES);
   const [busqueda, setBusqueda] = useState('');
+  const [filtroCategoria, setFiltroCategoria] = useState(null);
+  const [filtroProveedor, setFiltroProveedor]   = useState(null);
+  const [pickerVisible, setPickerVisible] = useState(false); // 'categoria' | 'proveedor' | false
 
   // Modales
   const [modalDetalle, setModalDetalle] = useState(false);
@@ -152,12 +161,25 @@ export default function ScreenGestionProductos() {
   const [regMinimo, setRegMinimo] = useState('');
   const [regUbicacion, setRegUbicacion] = useState('');
 
+  const [regLote, setRegLote] = useState('');
+  const [regFechaElab, setRegFechaElab] = useState('');
+  const [regFechaVenc, setRegFechaVenc] = useState('');
+
+  const categoriasConLote = ['Abarrotes', 'Bebidas', 'Lácteos', 'congelados',];
+  const requiereLote = categoriasConLote.includes(regCategoria);
+
+
   // ── Filtrado ────────────────────────────────────────────────────────────────
-  const productosFiltrados = productos.filter(
-    (p) =>
+  const proveedores = [...new Set(productos.map((p) => p.proveedor))];
+
+  const productosFiltrados = productos.filter((p) => {
+    const matchBusqueda =
       p.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
-      p.codigo.includes(busqueda)
-  );
+      p.codigo.includes(busqueda);
+    const matchCategoria = !filtroCategoria || p.categoria === filtroCategoria;
+    const matchProveedor = !filtroProveedor || p.proveedor === filtroProveedor;
+    return matchBusqueda && matchCategoria && matchProveedor;
+  });
 
   // ── Acciones ────────────────────────────────────────────────────────────────
   function abrirDetalle(producto) {
@@ -279,49 +301,261 @@ export default function ScreenGestionProductos() {
     );
   }
 
+  // ── Contenido del detalle (reutilizado en panel y modal) ────────────────────
+  function DetalleContenido() {
+    if (!productoActual) return null;
+    return (
+      <>
+        {/* Stats */}
+        <View style={s.statsGrid}>
+          {[
+            { label: 'Stock actual', value: String(productoActual.stock), sub: 'unidades' },
+            { label: 'Precio unitario', value: '$' + productoActual.precio.toLocaleString('es-CL'), sub: 'CLP' },
+            { label: 'Categoría', value: productoActual.categoria },
+            { label: 'Proveedor', value: productoActual.proveedor },
+          ].map((item, i) => (
+            <View key={i} style={s.statCard}>
+              <Text style={s.statLabel}>{item.label}</Text>
+              <Text style={s.statValue} numberOfLines={2}>{item.value}</Text>
+              {item.sub && <Text style={s.statSub}>{item.sub}</Text>}
+            </View>
+          ))}
+        </View>
+
+        {/* Datos adicionales */}
+        <View style={s.infoBlock}>
+          <Text style={s.blockTitle}>Datos adicionales</Text>
+          {[
+            { k: 'Código', v: productoActual.codigo },
+            { k: 'Ubicación', v: productoActual.ubicacion },
+            { k: 'Stock mínimo', v: productoActual.minimo + ' uds.' },
+            { k: 'Última actualización', v: productoActual.ultima },
+          ].map((row, i) => (
+            <View key={i} style={s.infoRow}>
+              <Text style={s.infoKey}>{row.k}</Text>
+              <Text style={s.infoVal} numberOfLines={1}>{row.v}</Text>
+            </View>
+          ))}
+        </View>
+
+        {/* Historial */}
+        <View style={s.infoBlock}>
+          <Text style={s.blockTitle}>Historial de ingresos</Text>
+          {(HISTORIALES[productoActual.id] || []).map((h, i) => (
+            <View key={i} style={s.histRow}>
+              <View style={[s.histDot, h.pos ? s.histDotIn : s.histDotAdj]} />
+              <View style={s.histInfo}>
+                <Text style={s.histTipo}>{h.tipo}</Text>
+                <Text style={s.histFecha}>{h.fecha}</Text>
+              </View>
+              <Text style={h.pos ? s.histPos : s.histNeg}>{h.qty} uds.</Text>
+            </View>
+          ))}
+        </View>
+
+        {/* Botón editar */}
+        <TouchableOpacity style={s.editBtn} onPress={abrirEditar} activeOpacity={0.75}>
+          <Text style={s.editBtnText}>✎  Editar datos del producto</Text>
+        </TouchableOpacity>
+        <View style={{ height: 20 }} />
+      </>
+    );
+  }
+
   // ── Render ───────────────────────────────────────────────────────────────────
   return (
     <View style={s.container}>
 
       {/* Header */}
       <View style={s.topbar}>
-        <View>
-          <Text style={s.topbarTitle}>Gestión de productos</Text>
-          <Text style={s.topbarSub}>{productosFiltrados.length} productos</Text>
+        <View style={s.topbarRow}>
+          <View>
+            <Text style={s.topbarTitle}>Gestión de productos</Text>
+            <Text style={s.topbarSub}>{productosFiltrados.length} productos</Text>
+          </View>
+          <TouchableOpacity style={s.themeToggle} onPress={toggle} activeOpacity={0.7}>
+            <Text style={s.themeToggleIcon}>{isDark ? '☀️' : '🌙'}</Text>
+          </TouchableOpacity>
         </View>
       </View>
 
       {/* Buscador */}
       <View style={s.searchWrap}>
-        <TextInput
-          style={s.searchInput}
-          placeholder="Buscar por nombre o código..."
-          placeholderTextColor={colors.placeholder}
-          value={busqueda}
-          onChangeText={setBusqueda}
-        />
+        <View style={s.searchRow}>
+          <TextInput
+            style={s.searchInput}
+            placeholder="Buscar por nombre o código..."
+            placeholderTextColor={colors.placeholder}
+            value={busqueda}
+            onChangeText={setBusqueda}
+          />
+          {busqueda.length > 0 && (
+            <TouchableOpacity style={s.searchClearBtn} onPress={() => setBusqueda('')} activeOpacity={0.7}>
+              <Text style={s.searchClearIcon}>✕</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity style={s.searchScanBtn} onPress={() => setBusqueda('7891234560012')} activeOpacity={0.75}>
+            <Text style={s.searchScanIcon}>▦</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
-      {/* Lista */}
-      <FlatList
-        data={productosFiltrados}
-        keyExtractor={(item) => item.id}
-        renderItem={renderProducto}
-        contentContainerStyle={s.listContent}
-        showsVerticalScrollIndicator={false}
-      />
+      {/* Filtros */}
+      <View style={s.filterWrap}>
+        <TouchableOpacity
+          style={[s.filterDropdown, filtroCategoria && s.filterDropdownActive]}
+          onPress={() => setPickerVisible('categoria')}
+          activeOpacity={0.75}
+        >
+          <Text style={[s.filterDropdownText, filtroCategoria && s.filterDropdownTextActive]} numberOfLines={1}>
+            {filtroCategoria ?? 'Categoría'}
+          </Text>
+          <Text style={[s.filterDropdownArrow, filtroCategoria && s.filterDropdownTextActive]}>▾</Text>
+        </TouchableOpacity>
 
-      {/* FABs */}
-      <View style={s.fabRow}>
-        <TouchableOpacity style={[s.fab, s.fabUpdate]} onPress={() => setModalActualizar(true)} activeOpacity={0.85}>
-          <Text style={s.fabUpdateText}>↑  Actualizar stock</Text>
+        <TouchableOpacity
+          style={[s.filterDropdown, filtroProveedor && s.filterDropdownActive]}
+          onPress={() => setPickerVisible('proveedor')}
+          activeOpacity={0.75}
+        >
+          <Text style={[s.filterDropdownText, filtroProveedor && s.filterDropdownTextActive]} numberOfLines={1}>
+            {filtroProveedor ?? 'Proveedor'}
+          </Text>
+          <Text style={[s.filterDropdownArrow, filtroProveedor && s.filterDropdownTextActive]}>▾</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[s.fab, s.fabRegister]} onPress={() => setModalRegistrar(true)} activeOpacity={0.85}>
-          <Text style={s.fabRegisterText}>+  Registrar producto</Text>
-        </TouchableOpacity>
+
+        {(filtroCategoria || filtroProveedor) && (
+          <TouchableOpacity
+            style={s.filterClear}
+            onPress={() => { setFiltroCategoria(null); setFiltroProveedor(null); }}
+            activeOpacity={0.75}
+          >
+            <Text style={s.filterClearText}>✕</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
-      {/* ── Modal: Detalle ─────────────────────────────────────────────────── */}
+      {/* Picker modal */}
+      <Modal visible={!!pickerVisible} animationType={isDesktop ? 'fade' : 'slide'} transparent onRequestClose={() => setPickerVisible(false)}>
+        <Pressable style={overlayStyle} onPress={() => setPickerVisible(false)}>
+          <Pressable style={sheetStyle} onPress={() => {}}>
+            {!isDesktop && <View style={s.handle} />}
+            <View style={s.sheetHeader}>
+              <Text style={s.sheetTitle}>
+                {pickerVisible === 'categoria' ? 'Filtrar por categoría' : 'Filtrar por proveedor'}
+              </Text>
+              <Pressable onPress={() => setPickerVisible(false)}>
+                <Text style={s.closeBtn}>✕</Text>
+              </Pressable>
+            </View>
+            <ScrollView>
+              {/* Opción "Todos" */}
+              <TouchableOpacity
+                style={s.pickerOption}
+                onPress={() => {
+                  pickerVisible === 'categoria' ? setFiltroCategoria(null) : setFiltroProveedor(null);
+                  setPickerVisible(false);
+                }}
+                activeOpacity={0.7}
+              >
+                <Text style={s.pickerOptionText}>Todos</Text>
+                {!(pickerVisible === 'categoria' ? filtroCategoria : filtroProveedor) && (
+                  <Text style={s.pickerCheck}>✓</Text>
+                )}
+              </TouchableOpacity>
+              {(pickerVisible === 'categoria' ? CATEGORIAS : proveedores).map((opcion) => {
+                const activo = pickerVisible === 'categoria'
+                  ? filtroCategoria === opcion
+                  : filtroProveedor === opcion;
+                return (
+                  <TouchableOpacity
+                    key={opcion}
+                    style={[s.pickerOption, activo && s.pickerOptionActive]}
+                    onPress={() => {
+                      pickerVisible === 'categoria'
+                        ? setFiltroCategoria(opcion)
+                        : setFiltroProveedor(opcion);
+                      setPickerVisible(false);
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[s.pickerOptionText, activo && s.pickerOptionTextActive]}>{opcion}</Text>
+                    {activo && <Text style={s.pickerCheck}>✓</Text>}
+                  </TouchableOpacity>
+                );
+              })}
+              <View style={{ height: 20 }} />
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* ── Layout desktop: master-detail en fila ────────────────────────────── */}
+      {isDesktop ? (
+        <View style={s.masterDetail}>
+
+          {/* Panel izquierdo: lista */}
+          <View style={s.masterPanel}>
+            <FlatList
+              data={productosFiltrados}
+              keyExtractor={(item) => item.id}
+              renderItem={renderProducto}
+              contentContainerStyle={s.listContent}
+              showsVerticalScrollIndicator={false}
+            />
+            <View style={[s.fabRow, s.fabRowDesktop]}>
+              <TouchableOpacity style={[s.fab, s.fabUpdate]} onPress={() => setModalActualizar(true)} activeOpacity={0.85}>
+                <Text style={s.fabUpdateText}>↑  Actualizar stock</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[s.fab, s.fabRegister]} onPress={() => setModalRegistrar(true)} activeOpacity={0.85}>
+                <Text style={s.fabRegisterText}>+  Registrar producto</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Panel derecho: detalle */}
+          <View style={s.detailPanel}>
+            {productoActual ? (
+              <>
+                <View style={s.sheetHeader}>
+                  <Text style={s.sheetTitle} numberOfLines={1}>{productoActual.nombre}</Text>
+                </View>
+                <ScrollView showsVerticalScrollIndicator={false}>
+                  <DetalleContenido />
+                </ScrollView>
+              </>
+            ) : (
+              <View style={s.detailEmpty}>
+                <Text style={s.detailEmptyIcon}>📦</Text>
+                <Text style={s.detailEmptyText}>Selecciona un producto para ver su detalle</Text>
+              </View>
+            )}
+          </View>
+
+        </View>
+      ) : (
+        /* ── Layout móvil: lista + FABs ──────────────────────────────────────── */
+        <View style={{ flex: 1 }}>
+          <FlatList
+            data={productosFiltrados}
+            keyExtractor={(item) => item.id}
+            renderItem={renderProducto}
+            contentContainerStyle={s.listContent}
+            showsVerticalScrollIndicator={false}
+          />
+          <View style={s.fabRow}>
+            <TouchableOpacity style={[s.fab, s.fabUpdate]} onPress={() => setModalActualizar(true)} activeOpacity={0.85}>
+              <Text style={s.fabUpdateText}>↑  Actualizar stock</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[s.fab, s.fabRegister]} onPress={() => setModalRegistrar(true)} activeOpacity={0.85}>
+              <Text style={s.fabRegisterText}>+  Registrar producto</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {/* ── Modal: Detalle (solo móvil) ───────────────────────────────────────── */}
+      {!isDesktop && (
       <Modal visible={modalDetalle} animationType="slide" transparent onRequestClose={() => setModalDetalle(false)}>
         <Pressable style={s.overlay} onPress={() => setModalDetalle(false)}>
           <Pressable style={s.bottomSheet} onPress={() => {}}>
@@ -331,73 +565,19 @@ export default function ScreenGestionProductos() {
               <TouchableOpacity onPress={() => setModalDetalle(false)}><Text style={s.closeBtn}>✕</Text></TouchableOpacity>
             </View>
             <ScrollView showsVerticalScrollIndicator={false}>
-              {productoActual && (
-                <>
-                  {/* Stats */}
-                  <View style={s.statsGrid}>
-                    {[
-                      { label: 'Stock actual', value: String(productoActual.stock), sub: 'unidades' },
-                      { label: 'Precio unitario', value: '$' + productoActual.precio.toLocaleString('es-CL'), sub: 'CLP' },
-                      { label: 'Categoría', value: productoActual.categoria },
-                      { label: 'Proveedor', value: productoActual.proveedor },
-                    ].map((item, i) => (
-                      <View key={i} style={s.statCard}>
-                        <Text style={s.statLabel}>{item.label}</Text>
-                        <Text style={s.statValue} numberOfLines={2}>{item.value}</Text>
-                        {item.sub && <Text style={s.statSub}>{item.sub}</Text>}
-                      </View>
-                    ))}
-                  </View>
-
-                  {/* Datos adicionales */}
-                  <View style={s.infoBlock}>
-                    <Text style={s.blockTitle}>Datos adicionales</Text>
-                    {[
-                      { k: 'Código', v: productoActual.codigo },
-                      { k: 'Ubicación', v: productoActual.ubicacion },
-                      { k: 'Stock mínimo', v: productoActual.minimo + ' uds.' },
-                      { k: 'Última actualización', v: productoActual.ultima },
-                    ].map((row, i) => (
-                      <View key={i} style={s.infoRow}>
-                        <Text style={s.infoKey}>{row.k}</Text>
-                        <Text style={s.infoVal} numberOfLines={1}>{row.v}</Text>
-                      </View>
-                    ))}
-                  </View>
-
-                  {/* Historial */}
-                  <View style={s.infoBlock}>
-                    <Text style={s.blockTitle}>Historial de ingresos</Text>
-                    {(HISTORIALES[productoActual.id] || []).map((h, i) => (
-                      <View key={i} style={s.histRow}>
-                        <View style={[s.histDot, h.pos ? s.histDotIn : s.histDotAdj]} />
-                        <View style={s.histInfo}>
-                          <Text style={s.histTipo}>{h.tipo}</Text>
-                          <Text style={s.histFecha}>{h.fecha}</Text>
-                        </View>
-                        <Text style={h.pos ? s.histPos : s.histNeg}>{h.qty} uds.</Text>
-                      </View>
-                    ))}
-                  </View>
-
-                  {/* Botón editar */}
-                  <TouchableOpacity style={s.editBtn} onPress={abrirEditar} activeOpacity={0.75}>
-                    <Text style={s.editBtnText}>✎  Editar datos del producto</Text>
-                  </TouchableOpacity>
-                  <View style={{ height: 20 }} />
-                </>
-              )}
+              <DetalleContenido />
             </ScrollView>
           </Pressable>
         </Pressable>
       </Modal>
+      )}
 
       {/* ── Modal: Editar ──────────────────────────────────────────────────── */}
-      <Modal visible={modalEditar} animationType="slide" transparent onRequestClose={() => setModalEditar(false)}>
+      <Modal visible={modalEditar} animationType={isDesktop ? 'fade' : 'slide'} transparent onRequestClose={() => setModalEditar(false)}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-          <Pressable style={s.overlay} onPress={() => setModalEditar(false)}>
-            <Pressable style={s.bottomSheet} onPress={() => {}}>
-              <View style={s.handle} />
+          <Pressable style={overlayStyle} onPress={() => setModalEditar(false)}>
+            <Pressable style={sheetStyle} onPress={() => {}}>
+              {!isDesktop && <View style={s.handle} />}
               <View style={s.sheetHeader}>
                 <Text style={s.sheetTitle}>Editar producto</Text>
                 <TouchableOpacity onPress={() => setModalEditar(false)}><Text style={s.closeBtn}>✕</Text></TouchableOpacity>
@@ -421,11 +601,11 @@ export default function ScreenGestionProductos() {
       </Modal>
 
       {/* ── Modal: Actualizar stock ────────────────────────────────────────── */}
-      <Modal visible={modalActualizar} animationType="slide" transparent onRequestClose={() => setModalActualizar(false)}>
+      <Modal visible={modalActualizar} animationType={isDesktop ? 'fade' : 'slide'} transparent onRequestClose={() => setModalActualizar(false)}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-          <Pressable style={s.overlay} onPress={() => setModalActualizar(false)}>
-            <Pressable style={s.bottomSheet} onPress={() => {}}>
-              <View style={s.handle} />
+          <Pressable style={overlayStyle} onPress={() => setModalActualizar(false)}>
+            <Pressable style={sheetStyle} onPress={() => {}}>
+              {!isDesktop && <View style={s.handle} />}
               <View style={s.sheetHeader}>
                 <Text style={s.sheetTitle}>Actualizar stock</Text>
                 <TouchableOpacity onPress={() => setModalActualizar(false)}><Text style={s.closeBtn}>✕</Text></TouchableOpacity>
@@ -473,11 +653,11 @@ export default function ScreenGestionProductos() {
       </Modal>
 
       {/* ── Modal: Registrar producto ──────────────────────────────────────── */}
-      <Modal visible={modalRegistrar} animationType="slide" transparent onRequestClose={() => setModalRegistrar(false)}>
+      <Modal visible={modalRegistrar} animationType={isDesktop ? 'fade' : 'slide'} transparent onRequestClose={() => setModalRegistrar(false)}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-          <Pressable style={s.overlay} onPress={() => setModalRegistrar(false)}>
-            <Pressable style={s.bottomSheet} onPress={() => {}}>
-              <View style={s.handle} />
+          <Pressable style={overlayStyle} onPress={() => setModalRegistrar(false)}>
+            <Pressable style={sheetStyle} onPress={() => {}}>
+              {!isDesktop && <View style={s.handle} />}
               <View style={s.sheetHeader}>
                 <Text style={s.sheetTitle}>Registrar producto</Text>
                 <TouchableOpacity onPress={() => setModalRegistrar(false)}><Text style={s.closeBtn}>✕</Text></TouchableOpacity>
@@ -514,6 +694,13 @@ export default function ScreenGestionProductos() {
                   </View>
 
                   <FormField label="Proveedor" value={regProveedor} onChangeText={setRegProveedor} placeholder="Ej: Distribuidora Norte" colors={colors} s={s} />
+                  {requiereLote && (
+                    <>
+                        <FormField label="Número de lote *" value={regLote} onChangeText={setRegLote} placeholder="Ej: LOTE-001" colors={colors} s={s} />
+                        <FormField label="Fecha de elaboración" value={regFechaElab} onChangeText={setRegFechaElab} placeholder="YYYY-MM-DD" colors={colors} s={s} />
+                        <FormField label="Fecha de vencimiento *" value={regFechaVenc} onChangeText={setRegFechaVenc} placeholder="YYYY-MM-DD" colors={colors} s={s} />
+                    </>
+                    )}
                   <FormField label="Precio unitario ($)" value={regPrecio} onChangeText={setRegPrecio} placeholder="Ej: 1290" keyboardType="numeric" colors={colors} s={s} />
                   <FormField label="Stock inicial" value={regStock} onChangeText={setRegStock} placeholder="Ej: 100" keyboardType="numeric" colors={colors} s={s} />
                   <FormField label="Stock mínimo" value={regMinimo} onChangeText={setRegMinimo} placeholder="Ej: 20" keyboardType="numeric" colors={colors} s={s} />
@@ -561,12 +748,38 @@ const makeStyles = (c) =>
 
     // Topbar
     topbar:           { backgroundColor: c.surface, borderBottomWidth: 0.5, borderBottomColor: c.border, paddingHorizontal: 16, paddingVertical: 14 },
+    topbarRow:        { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     topbarTitle:      { fontSize: 16, fontWeight: '600', color: c.textPrimary },
     topbarSub:        { fontSize: 12, color: c.textSecondary, marginTop: 1 },
+    themeToggle:      { width: 36, height: 36, borderRadius: 10, backgroundColor: c.surface2, borderWidth: 0.5, borderColor: c.border, alignItems: 'center', justifyContent: 'center' },
+    themeToggleIcon:  { fontSize: 18 },
+
+    // Filtros (dropdowns compactos)
+    filterWrap:           { backgroundColor: c.surface, borderBottomWidth: 0.5, borderBottomColor: c.border, paddingHorizontal: 12, paddingVertical: 8, flexDirection: 'row', gap: 8, alignItems: 'center' },
+    filterDropdown:       { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: c.surface2, borderWidth: 0.5, borderColor: c.border, borderRadius: 10, paddingHorizontal: 11, paddingVertical: 8, gap: 4 },
+    filterDropdownActive: { backgroundColor: c.btnBg, borderColor: c.btnBg },
+    filterDropdownText:   { flex: 1, fontSize: 13, color: c.textSecondary },
+    filterDropdownTextActive: { color: c.btnText, fontWeight: '500' },
+    filterDropdownArrow:  { fontSize: 11, color: c.textSecondary },
+    filterClear:          { width: 32, height: 32, borderRadius: 8, backgroundColor: '#FCEBEB', borderWidth: 0.5, borderColor: '#F5C6C6', alignItems: 'center', justifyContent: 'center' },
+    filterClearText:      { fontSize: 13, color: '#791F1F', fontWeight: '600' },
+
+    // Picker de filtros
+    pickerOption:         { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 13, borderBottomWidth: 0.5, borderBottomColor: c.border },
+    pickerOptionActive:   { backgroundColor: c.surface2 },
+    pickerOptionText:     { fontSize: 14, color: c.textPrimary },
+    pickerOptionTextActive: { fontWeight: '600', color: c.accentText },
+    pickerCheck:          { fontSize: 15, color: c.accentText, fontWeight: '600' },
 
     // Buscador
+    // Buscador
     searchWrap:       { backgroundColor: c.surface, borderBottomWidth: 0.5, borderBottomColor: c.border, paddingHorizontal: 12, paddingVertical: 10 },
-    searchInput:      { backgroundColor: c.surface2, borderWidth: 0.5, borderColor: c.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, fontSize: 14, color: c.textPrimary },
+    searchRow:        { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    searchInput:      { flex: 1, backgroundColor: c.surface2, borderWidth: 0.5, borderColor: c.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, fontSize: 14, color: c.textPrimary },
+    searchClearBtn:   { width: 34, height: 34, borderRadius: 9, backgroundColor: c.surface2, borderWidth: 0.5, borderColor: c.border, alignItems: 'center', justifyContent: 'center' },
+    searchClearIcon:  { fontSize: 13, color: c.textSecondary, fontWeight: '600' },
+    searchScanBtn:    { width: 34, height: 34, borderRadius: 9, backgroundColor: c.btnBg, alignItems: 'center', justifyContent: 'center' },
+    searchScanIcon:   { fontSize: 17, color: c.btnText },
 
     // Lista
     listContent:      { padding: 12, paddingBottom: 90, gap: 8 },
@@ -600,9 +813,25 @@ const makeStyles = (c) =>
     fabUpdateText:    { fontSize: 13, fontWeight: '600', color: c.btnText },
     fabRegisterText:  { fontSize: 13, fontWeight: '600', color: '#0C447C' },
 
-    // Modal / Bottom Sheet
+    // Desktop layout master-detail
+    masterDetail:     { flex: 1, flexDirection: 'row' },
+    masterPanel:      { flex: 1, borderRightWidth: 0.5, borderRightColor: c.border },
+    detailPanel:      { flex: 1, backgroundColor: c.surface2 },
+    detailEmpty:      { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10, padding: 32 },
+    detailEmptyIcon:  { fontSize: 40 },
+    detailEmptyText:  { fontSize: 14, color: c.textSecondary, textAlign: 'center' },
+
+    // (kept for fabRowDesktop)
+    desktopWrapper:   { flex: 1, width: '100%', maxWidth: 720, alignSelf: 'center' },
+    fabRowDesktop:    { position: 'relative', borderTopWidth: 0.5, borderTopColor: c.border },
+
+    // Modal / Bottom Sheet (móvil)
     overlay:          { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
     bottomSheet:      { backgroundColor: c.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '90%' },
+
+    // Modal desktop (dialog centrado)
+    overlayDesktop:       { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 24 },
+    bottomSheetDesktop:   { backgroundColor: c.surface, borderRadius: 16, width: '100%', maxWidth: 520, maxHeight: '85%', shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.18, shadowRadius: 24, elevation: 12 },
     handle:           { width: 36, height: 4, backgroundColor: c.border, borderRadius: 2, alignSelf: 'center', marginTop: 10 },
     sheetHeader:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 0.5, borderBottomColor: c.border },
     sheetTitle:       { fontSize: 15, fontWeight: '600', color: c.textPrimary, flex: 1 },
