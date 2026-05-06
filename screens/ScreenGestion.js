@@ -29,7 +29,7 @@ export default function ScreenGestion({ navigation }) {
         {/* Productos por Peso */}
         <TouchableOpacity
           style={styles.card}
-          onPress={() => navigation.navigate('Recetas')}
+          onPress={() => navigation.navigate('ScreenGestionRecetas')}
         >
           <MaterialIcons name="scale" size={40} color="#27AE60" />
           <Text style={styles.cardTitle}>Productos por Kg</Text>
