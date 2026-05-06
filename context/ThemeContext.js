@@ -1,9 +1,9 @@
 import { createContext, useContext, useState } from 'react';
 
 const light = {
-  bg: '#F4F2EE',
+  bg: '#FFFFFF',
   surface: '#FFFFFF',
-  surface2: '#F0EDE8',
+  surface2: '#FFFFFF',
   border: 'rgba(0,0,0,0.1)',
   textPrimary: '#1A1916',
   textSecondary: '#7A7670',

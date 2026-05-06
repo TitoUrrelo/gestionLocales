@@ -13,7 +13,7 @@ const STOCK_DATA = [
   { id: '1', nombre: 'Pollo (kg)',        local: 'comida',    qty: 0.5, min: 5,  max: 20,  unit: 'kg' },
   { id: '2', nombre: 'Pan de completo',   local: 'comida',    qty: 8,   min: 30, max: 100, unit: 'un' },
   { id: '3', nombre: 'Carne molida (kg)', local: 'comida',    qty: 1.2, min: 4,  max: 15,  unit: 'kg' },
-  { id: '4', nombre: 'Aceite (Und)',       local: 'cafeteria', qty: 0.3, min: 2,  max: 8,   unit: 'Und' },
+  { id: '4', nombre: 'Aceite (lt)',       local: 'cafeteria', qty: 0.3, min: 2,  max: 8,   unit: 'lt' },
   { id: '5', nombre: 'Harina (kg)',       local: 'cafeteria', qty: 3.5, min: 5,  max: 25,  unit: 'kg' },
   { id: '6', nombre: 'Café (kg)',         local: 'cafeteria', qty: 0.4, min: 1.5,max: 5,   unit: 'kg' },
   { id: '7', nombre: 'Azúcar (kg)',       local: 'almacen',   qty: 2.1, min: 3,  max: 20,  unit: 'kg' },
@@ -33,10 +33,10 @@ const VENCIMIENTOS_DATA = [
 ];
 
 const PROVEEDORES_INIT = [
-  { id: 'p1', nombre: 'Distribuidora El Pollo',  initials: '', empresa: 'El Pollo ',         tipo: 'Carnes y aves',      locales: ['comida'],               dias: [1, 4],    contacto: 'Juan Pérez',  telefono: '+56 9 1234 5678' },
-  { id: 'p2', nombre: 'Central',    initials: '', empresa: 'Central',  tipo: 'Pan y masas',         locales: ['comida', 'cafeteria'],  dias: [2, 5],    contacto: 'María López', telefono: '+56 9 8765 4321' },
-  { id: 'p3', nombre: 'Almacén Santiago ',    initials: '', empresa: 'Santiago ',           tipo: 'Abarrotes generales', locales: ['almacen', 'cafeteria'], dias: [1, 3, 5], contacto: 'Carlos Ruiz', telefono: '+56 9 5555 1234' },
-  { id: 'p4', nombre: 'Café & Co.',              initials: '', empresa: 'Café & Co. Ltda.',       tipo: 'Insumos cafetería',   locales: ['cafeteria'],            dias: [3],       contacto: 'Ana Soto',    telefono: '+56 9 9999 8888' },
+  { id: 'p1', nombre: 'Distribuidora El Pollo',  initials: 'DP', empresa: 'El Pollo SpA',         tipo: 'Carnes y aves',      locales: ['comida'],               dias: [1, 4],    contacto: 'Juan Pérez',  telefono: '+56 9 1234 5678' },
+  { id: 'p2', nombre: 'Panificadora Central',    initials: 'PC', empresa: 'Panificadora Central',  tipo: 'Pan y masas',         locales: ['comida', 'cafeteria'],  dias: [2, 5],    contacto: 'María López', telefono: '+56 9 8765 4321' },
+  { id: 'p3', nombre: 'Almacén Santiago SpA',    initials: 'AS', empresa: 'Santiago SpA',           tipo: 'Abarrotes generales', locales: ['almacen', 'cafeteria'], dias: [1, 3, 5], contacto: 'Carlos Ruiz', telefono: '+56 9 5555 1234' },
+  { id: 'p4', nombre: 'Café & Co.',              initials: 'CC', empresa: 'Café & Co. Ltda.',       tipo: 'Insumos cafetería',   locales: ['cafeteria'],            dias: [3],       contacto: 'Ana Soto',    telefono: '+56 9 9999 8888' },
 ];
 
 const LOCAL_LABELS = { comida: 'Comida Rápida', almacen: 'Almacén', cafeteria: 'Cafetería' };
@@ -134,7 +134,7 @@ function StockAlertCard({ item, onVerDetalle }) {
   const level = getLevel(item);
   const pct   = getPct(item);
   const isCritical = ['critical', 'out'].includes(level);
-  const accentColor = isCritical ? '' : level === 'low' ? '' : '';
+  const accentColor = isCritical ? '#E24B4A' : level === 'low' ? '#BA7517' : '#639922';
   const badgeLabel  = level === 'out' ? 'Sin stock' : isCritical ? 'Crítico' : 'Stock bajo';
   const badgeLevel  = isCritical ? 'critical' : 'low';
 
@@ -149,7 +149,7 @@ function StockAlertCard({ item, onVerDetalle }) {
       ]}
     >
       <View style={[s.alertIcon, { backgroundColor: isCritical ? '#FCEBEB' : '#FAEEDA' }]}>
-        <Text style={{ fontSize: 16 }}>{isCritical ? '' : ''}</Text>
+        <Text style={{ fontSize: 16 }}>{isCritical ? '⚠️' : '↓'}</Text>
       </View>
       <View style={s.alertInfo}>
         <Text style={s.alertNombre}>{item.nombre}</Text>
@@ -172,7 +172,7 @@ function VencimientoCard({ item, onVerDetalle }) {
   const isCritical = level === 'critical';
   const accentColor = isCritical ? '#E24B4A' : level === 'warning' ? '#BA7517' : '#639922';
   const badgeLabel  = isCritical ? '¡Hoy/Mañana!' : level === 'warning' ? `${item.vence} días` : `${item.vence} días`;
-  const icon        = isCritical ? '' : level === 'warning' ? '' : '';
+  const icon        = isCritical ? '🚨' : level === 'warning' ? '⏳' : '📅';
 
   return (
     <Pressable
@@ -341,7 +341,7 @@ function ModalDetalleVencimiento({ item, onClose }) {
             backgroundColor: isCritical ? '#FCEBEB' : level === 'warning' ? '#FAEEDA' : '#EAF3DE',
             borderColor: isCritical ? '#F5A6A6' : level === 'warning' ? '#FAC775' : '#B8DFA0',
           }]}>
-            <Text style={{ fontSize: 18 }}>{isCritical ? '' : level === 'warning' ? '' : ''}</Text>
+            <Text style={{ fontSize: 18 }}>{isCritical ? '🚨' : level === 'warning' ? '⏳' : '📅'}</Text>
             <Text style={[s.warningText, {
               color: isCritical ? '#791F1F' : level === 'warning' ? '#633806' : '#27500A',
             }]}>
@@ -444,7 +444,7 @@ function ModalDetalleProveedor({ proveedor, onClose }) {
                     >
                       {/* Icono + nombre */}
                       <View style={[s.recomIcon, { backgroundColor: bgColor }]}>
-                        <Text style={{ fontSize: 14 }}>{isCritical ? '' : ''}</Text>
+                        <Text style={{ fontSize: 14 }}>{isCritical ? '⚠️' : '↓'}</Text>
                       </View>
                       <View style={{ flex: 1, minWidth: 0 }}>
                         <View style={[s.row, { justifyContent: 'space-between', marginBottom: 2 }]}>
@@ -1118,12 +1118,15 @@ const s = StyleSheet.create({
   avatarLgText:    { fontSize: 15, fontWeight: '700', color: '#0C447C' },
 
   // Warning box
-
+  warningBox:      { backgroundColor: '#FAEEDA', borderWidth: 0.5, borderColor: '#FAC775', borderRadius: 10, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  warningText:     { fontSize: 13, color: '#633806', fontWeight: '500', flex: 1 },
 
   // Formulario
   formGroup:       { marginBottom: 16 },
   formLabel:       { fontSize: 13, fontWeight: '600', color: '#2C3E50', marginBottom: 7 },
   input:           { borderWidth: 1, borderColor: '#E2E6EA', borderRadius: 10, paddingHorizontal: 13, paddingVertical: 11, fontSize: 14, color: '#2C3E50', backgroundColor: '#FAFBFC' },
+  inputError:      { borderColor: '#E24B4A' },
+  errorText:       { fontSize: 12, color: '#E24B4A', marginTop: 4 },
 
   // Días toggle
   diaToggle:       { paddingHorizontal: 13, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: '#E2E6EA', backgroundColor: '#FAFBFC' },
