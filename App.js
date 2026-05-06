@@ -5,6 +5,7 @@ import LoginScreen from './screens/LoginScreen';
 import ScreenGestion from './screens/ScreenGestion';
 import ScreenGestionProductos from './screens/ScreenGestionProductos';
 import AlertasScreen from './screens/AlertasScreen';
+import ScreenGestionRecetas from './screens/ScreenGestionRecetas';
 // import HomeScreen from './screens/HomeScreen'; // tu siguiente pantalla
 
 const Stack = createNativeStackNavigator();
@@ -18,6 +19,7 @@ export default function App() {
           <Stack.Screen name="ScreenGestion" component={ScreenGestion} />
           <Stack.Screen name="ScreenGestionProductos" component={ScreenGestionProductos} />
           <Stack.Screen name="AlertasScreen" component={AlertasScreen} />
+          <Stack.Screen name="ScreenGestionRecetas" component={ScreenGestionRecetas} />
         </Stack.Navigator>
       </NavigationContainer>
     </ThemeProvider>
